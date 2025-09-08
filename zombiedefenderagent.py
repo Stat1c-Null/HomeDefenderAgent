@@ -19,6 +19,7 @@ py.display.set_caption('Zombie Defender Agent')
  
 clock = py.time.Clock()
 font_style = py.font.SysFont("comicsansms", 25)
+current_time = py.time.get_ticks()
 
 aliveZombies = []
 deadZombies = []
@@ -28,12 +29,20 @@ zombiesCleaned = 0
 
 zombieGoalX,zombieGoalY = dis_width / 2, dis_height / 2
 
+patrolPoints = [(zombieGoalX - 100, zombieGoalY - 100),
+                (zombieGoalX + 100, zombieGoalY - 100),
+                (zombieGoalX + 100, zombieGoalY + 100),
+                (zombieGoalX - 100, zombieGoalY + 100)]
+patrolIndex = 0
+
 class Zombie:
-    def __init__(self,xpos, ypos, radius, speed):
+    def __init__(self,xpos, ypos, radius, speed, targetX, targetY):
         self.xpos = xpos
         self.ypos = ypos
         self.radius = radius
         self.speed = speed
+        self.targetX = targetX
+        self.targetY = targetY
         self.isDead = False
 
     #Draw Zombie on the Screen
@@ -42,7 +51,15 @@ class Zombie:
 
     #Move zombie towards the goal
     def move(self):
-        pass
+        if not self.isDead:
+            if self.xpos < self.targetX:
+                self.xpos += self.speed
+            elif self.xpos > self.targetX:
+                self.xpos -= self.speed
+            if self.ypos < self.targetY:
+                self.ypos += self.speed
+            elif self.ypos > self.targetY:
+                self.ypos -= self.speed
 
 class Agent:
     def __init__(self, xpos, ypos, radius, speed, health):
@@ -59,7 +76,21 @@ class Agent:
 
     #Patrol the area
     def patrol(self):
-        pass
+        global patrolIndex
+        targetX, targetY = patrolPoints[patrolIndex]
+        #Ones Agent reaches patrol point, move to next point
+        if abs(self.xpos - targetX) < 5 and abs(self.ypos - targetY) < 5:
+            patrolIndex = (patrolIndex + 1) % len(patrolPoints)
+        else:
+            #Move horizontally or vertically towards target
+            if self.xpos < targetX:
+                self.xpos += self.speed
+            elif self.xpos > targetX:
+                self.xpos -= self.speed
+            if self.ypos < targetY:
+                self.ypos += self.speed
+            elif self.ypos > targetY:
+                self.ypos -= self.speed
 
     #Move towards dead zombie
     def moveToZombie(self, zombieX, zombieY):
@@ -83,10 +114,22 @@ def zombiesCleanedScore(cleaned):
     dis.blit(mesg, [dis_width / 3, 0])
 
 def spawnZombies():
-    pass
+    global aliveZombies, current_time
+    
+    action_time = None
+    spawn_delya = 3000
+    if action_time is None:
+        action_time = current_time + 3000
+
+    if action_time is not None and current_time >= action_time:
+        xpos = random.randint(0, dis_width)
+        ypos = random.randint(0, dis_height)
+        new_zombie = Zombie(xpos, ypos, 7, 2, zombieGoalX, zombieGoalY)
+        aliveZombies.append(new_zombie)
+        action_time = current_time + spawn_delya
  
-agent = Agent(xpos=300, ypos=400, radius=10, speed=6, health=100)
-zombie = Zombie(xpos=200, ypos=300, radius=7, speed=3)
+agent = Agent(xpos=300, ypos=400, radius=10, speed=5, health=100)
+zombie = Zombie(xpos=200, ypos=300, radius=7, speed=2, targetX=zombieGoalX, targetY=zombieGoalY)
  
 def gameLoop():
     game_over = False
@@ -98,16 +141,21 @@ def gameLoop():
 
         #Fill background with a color
         dis.fill(brown)
-
         #Draw Agent
         agent.draw()
-
         #Draw Zombies
         zombie.draw()
-        
+        #Draw target
+        py.draw.rect(dis, black, (zombieGoalX, zombieGoalY, 30, 30))
         #Draw Score
         zombiesKilledScore(0)
         zombiesCleanedScore(0)
+
+        #Agent Logic
+        agent.patrol()
+
+        #Zombie Logic
+        zombie.move()
 
         #Update display
         py.display.update() 
