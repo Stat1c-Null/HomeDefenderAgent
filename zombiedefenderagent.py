@@ -109,6 +109,7 @@ class Agent:
         print("Zombie Burned!")
         deadZombies.remove(deadZombie)
 
+# Move entity towards a goal position
 def moveToGoal(xpos, ypos, targetX, targetY, speed):
     if xpos < targetX:
         xpos += speed
@@ -128,6 +129,7 @@ def zombiesCleanedScore(cleaned):
     mesg = font_style.render("Zombies Cleaned: " + str(cleaned), True, blue)
     dis.blit(mesg, [dis_width / 3, 0])
 
+# Spawn a new zombie at a random edge of the screen
 def spawnZombies():
     global aliveZombies
     randomizer = random.random()
@@ -156,6 +158,9 @@ def gameLoop():
     game_over = False
     current_time = py.time.get_ticks()
     action_time = current_time + 5000
+    burn_delay = 1000
+    burn_time = 0
+    burning = False
  
     while not game_over:
         for event in py.event.get():
@@ -176,8 +181,8 @@ def gameLoop():
         #Draw target
         py.draw.rect(dis, black, (zombieGoalX, zombieGoalY, 30, 30))
         #Draw Score
-        zombiesKilledScore(0)
-        zombiesCleanedScore(0)
+        zombiesKilledScore(zombiesKilled)
+        zombiesCleanedScore(zombiesCleaned)
 
         #Draw Agent
         agent.draw()
@@ -189,10 +194,16 @@ def gameLoop():
         else:
             agent.target = deadZombies[0]
             agent.moveToZombie(agent.target.xpos, agent.target.ypos)
-            if(abs(agent.xpos - agent.target.xpos) < 5 and abs(agent.ypos - agent.target.ypos) < 5):
-                print("Burning Zombie")
-                zombiesCleaned += 1
+            #Check if agent is close enough to burn the dead zombie
+            if(abs(agent.xpos - agent.target.xpos) < 5 and abs(agent.ypos - agent.target.ypos) < 5) and burning == False:
+                #Apply artificial delay for burning action
+                burn_time = current_time + burn_delay
+                burning = True
+            #Burn zombies
+            if current_time >= burn_time and burning == True:
                 agent.burn(agent.target)
+                zombiesCleaned += 1
+                burning = False
 
         #Spawn Zombies
         if current_time >= action_time:
