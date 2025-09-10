@@ -19,7 +19,6 @@ py.display.set_caption('Zombie Defender Agent')
  
 clock = py.time.Clock()
 font_style = py.font.SysFont("comicsansms", 25)
-current_time = py.time.get_ticks()
 
 aliveZombies = []
 deadZombies = []
@@ -47,27 +46,24 @@ class Zombie:
 
     #Draw Zombie on the Screen
     def draw(self):
-        py.draw.circle(dis, red, (self.xpos, self.ypos), self.radius)
+        if not self.isDead:
+            py.draw.circle(dis, red, (self.xpos, self.ypos), self.radius)
+        else:  
+            py.draw.circle(dis, black, (self.xpos, self.ypos), self.radius)
 
     #Move zombie towards the goal
     def move(self):
         if not self.isDead:
-            if self.xpos < self.targetX:
-                self.xpos += self.speed
-            elif self.xpos > self.targetX:
-                self.xpos -= self.speed
-            if self.ypos < self.targetY:
-                self.ypos += self.speed
-            elif self.ypos > self.targetY:
-                self.ypos -= self.speed
+            self.xpos, self.ypos = moveToGoal(self.xpos, self.ypos, self.targetX, self.targetY, self.speed)
 
 class Agent:
-    def __init__(self, xpos, ypos, radius, speed, health):
+    def __init__(self, xpos, ypos, radius, speed, health, visionRange):
         self.xpos = xpos
         self.ypos = ypos
         self.radius = radius
         self.speed = speed
         self.health = health
+        self.visionRange = visionRange
         self.target = None
 
     #Draw agent on the screen
@@ -83,79 +79,125 @@ class Agent:
             patrolIndex = (patrolIndex + 1) % len(patrolPoints)
         else:
             #Move horizontally or vertically towards target
-            if self.xpos < targetX:
-                self.xpos += self.speed
-            elif self.xpos > targetX:
-                self.xpos -= self.speed
-            if self.ypos < targetY:
-                self.ypos += self.speed
-            elif self.ypos > targetY:
-                self.ypos -= self.speed
+            self.xpos, self.ypos = moveToGoal(self.xpos, self.ypos, targetX, targetY, self.speed)
+
+    #Scan area around agent for alive zombies
+    def scanForZombies(self, aliveZombies):
+        for zombie in aliveZombies:
+            distance = ((self.xpos - zombie.xpos) ** 2 + (self.ypos - zombie.ypos) ** 2) ** 0.5
+            if distance <= self.visionRange and not zombie.isDead:
+                print("Zombie Spotted and Shot!")
+                self.target = zombie
+                self.shoot(self.target)
+                
+                #return zombie
 
     #Move towards dead zombie
     def moveToZombie(self, zombieX, zombieY):
-        pass
+        self.xpos, self.ypos = moveToGoal(self.xpos, self.ypos, zombieX, zombieY, self.speed)
 
     #Shoot zombie
     def shoot(self, target):
-        pass
+        global zombiesKilled
+        zombiesKilled += 1
+        target.isDead = True
+        aliveZombies.remove(target)
+        deadZombies.append(target)
 
     #Burn zombie
-    def burn(self, zombie):
-        pass
+    def burn(self, deadZombie):
+        print("Zombie Burned!")
+        deadZombies.remove(deadZombie)
 
+def moveToGoal(xpos, ypos, targetX, targetY, speed):
+    if xpos < targetX:
+        xpos += speed
+    elif xpos > targetX:
+        xpos -= speed
+    if ypos < targetY:
+        ypos += speed
+    elif ypos > targetY:
+        ypos -= speed
+    return xpos, ypos
  
 def zombiesKilledScore(killed):
     value = font_style.render("Zombies Killed: " + str(killed), True, yellow)
     dis.blit(value, [0, 0])
-     
+    
 def zombiesCleanedScore(cleaned):
     mesg = font_style.render("Zombies Cleaned: " + str(cleaned), True, blue)
     dis.blit(mesg, [dis_width / 3, 0])
 
 def spawnZombies():
-    global aliveZombies, current_time
-    
-    action_time = None
-    spawn_delya = 3000
-    if action_time is None:
-        action_time = current_time + 3000
+    global aliveZombies
+    randomizer = random.random()
 
-    if action_time is not None and current_time >= action_time:
-        xpos = random.randint(0, dis_width)
+    #Randomly choose side of the screen to spawn zombie
+    if randomizer < 0.25:
+        xpos = random.randint(-100, 0)
         ypos = random.randint(0, dis_height)
-        new_zombie = Zombie(xpos, ypos, 7, 2, zombieGoalX, zombieGoalY)
-        aliveZombies.append(new_zombie)
-        action_time = current_time + spawn_delya
+    elif randomizer < 0.5:
+        xpos = random.randint(dis_width, dis_width + 100)
+        ypos = random.randint(0, dis_height)
+    elif randomizer < 0.75:
+        xpos = random.randint(0, dis_width)
+        ypos = random.randint(-100, 0)
+    else:
+        xpos = random.randint(0, dis_width)
+        ypos = random.randint(dis_height, dis_height + 100)
+
+    new_zombie = Zombie(xpos, ypos, 7, 2, zombieGoalX, zombieGoalY)
+    aliveZombies.append(new_zombie)
  
-agent = Agent(xpos=300, ypos=400, radius=10, speed=5, health=100)
-zombie = Zombie(xpos=200, ypos=300, radius=7, speed=2, targetX=zombieGoalX, targetY=zombieGoalY)
- 
+agent = Agent(xpos=300, ypos=400, radius=10, speed=5, health=100, visionRange=100)
+
 def gameLoop():
+    global zombiesCleaned
     game_over = False
+    current_time = py.time.get_ticks()
+    action_time = current_time + 5000
  
     while not game_over:
         for event in py.event.get():
             if event.type == py.QUIT:
                 game_over = True
 
+        current_time = py.time.get_ticks()
         #Fill background with a color
         dis.fill(brown)
-        #Draw Agent
-        agent.draw()
-        #Draw Zombies
-        zombie.draw()
+
+        #Draw and move Zombies
+        for zombie in aliveZombies:
+            zombie.draw()
+            zombie.move()
+        for deadZombie in deadZombies:
+            deadZombie.draw()
+
         #Draw target
         py.draw.rect(dis, black, (zombieGoalX, zombieGoalY, 30, 30))
         #Draw Score
         zombiesKilledScore(0)
         zombiesCleanedScore(0)
 
-        #Agent Logic
-        agent.patrol()
+        #Draw Agent
+        agent.draw()
 
-        #Zombie Logic
-        zombie.move()
+        #Agent Logic
+        if len(deadZombies) == 0:
+            agent.patrol()
+            agent.scanForZombies(aliveZombies)
+        else:
+            agent.target = deadZombies[0]
+            agent.moveToZombie(agent.target.xpos, agent.target.ypos)
+            if(abs(agent.xpos - agent.target.xpos) < 5 and abs(agent.ypos - agent.target.ypos) < 5):
+                print("Burning Zombie")
+                zombiesCleaned += 1
+                agent.burn(agent.target)
+
+        #Spawn Zombies
+        if current_time >= action_time:
+            spawnZombies()
+            action_time = current_time + random.randint(1000,5000)
 
         #Update display
         py.display.update() 
