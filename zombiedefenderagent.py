@@ -22,6 +22,7 @@ font_style = py.font.SysFont("comicsansms", 25)
 
 aliveZombies = []
 deadZombies = []
+projectiles = []
 
 zombiesKilled = 0
 zombiesCleaned = 0
@@ -65,6 +66,7 @@ class Agent:
         self.health = health
         self.visionRange = visionRange
         self.target = None
+        self.patrolCounter = 0  # Counter to manage patrol timing
 
     #Draw agent on the screen
     def draw(self):
@@ -77,10 +79,16 @@ class Agent:
         #Ones Agent reaches patrol point, move to next point
         if abs(self.xpos - targetX) < 5 and abs(self.ypos - targetY) < 5:
             patrolIndex = (patrolIndex + 1) % len(patrolPoints)
+            if patrolIndex == len(patrolPoints) - 1:
+                self.patrolCounter += 1
         else:
             #Move horizontally or vertically towards target
             self.xpos, self.ypos = moveToGoal(self.xpos, self.ypos, targetX, targetY, self.speed)
 
+        #Change direction of patroling after 2 complete cycles
+        if self.patrolCounter == 2:
+            patrolPoints.reverse()
+            self.patrolCounter = 0
     #Scan area around agent for alive zombies
     def scanForZombies(self, aliveZombies):
         for zombie in aliveZombies:
@@ -98,16 +106,46 @@ class Agent:
 
     #Shoot zombie
     def shoot(self, target):
-        global zombiesKilled
-        zombiesKilled += 1
-        target.isDead = True
-        aliveZombies.remove(target)
-        deadZombies.append(target)
+        # Spawn a projectile towards the target zombie
+        projectile = Projectile(self.xpos, self.ypos, target)
+        projectiles.append(projectile)
 
     #Burn zombie
     def burn(self, deadZombie):
         print("Zombie Burned!")
         deadZombies.remove(deadZombie)
+
+class Projectile:
+    def __init__(self, xpos, ypos, target, speed=10, radius=4):
+        self.xpos = xpos
+        self.ypos = ypos
+        self.target = target
+        self.speed = speed
+        self.radius = radius
+        self.active = True
+
+    def move(self):
+        if not self.active:
+            return
+        # If target is already dead, deactivate projectile
+        if self.target.isDead:
+            self.active = False
+            return
+        self.xpos, self.ypos = moveToGoal(self.xpos, self.ypos, self.target.xpos, self.target.ypos, self.speed)
+        # Check for collision with target
+        distance = ((self.xpos - self.target.xpos) ** 2 + (self.ypos - self.target.ypos) ** 2) ** 0.5
+        if distance <= self.radius + self.target.radius:
+            self.active = False
+            self.target.isDead = True
+            if self.target in aliveZombies:
+                aliveZombies.remove(self.target)
+                deadZombies.append(self.target)
+            global zombiesKilled
+            zombiesKilled += 1
+
+    def draw(self):
+        if self.active:
+            py.draw.circle(dis, yellow, (int(self.xpos), int(self.ypos)), self.radius)
 
 # Move entity towards a goal position
 def moveToGoal(xpos, ypos, targetX, targetY, speed):
@@ -151,7 +189,7 @@ def spawnZombies():
     new_zombie = Zombie(xpos, ypos, 7, 2, zombieGoalX, zombieGoalY)
     aliveZombies.append(new_zombie)
  
-agent = Agent(xpos=300, ypos=400, radius=10, speed=5, health=100, visionRange=100)
+agent = Agent(xpos=300, ypos=400, radius=10, speed=5, health=100, visionRange=110)
 
 def gameLoop():
     global zombiesCleaned
@@ -177,6 +215,13 @@ def gameLoop():
             zombie.move()
         for deadZombie in deadZombies:
             deadZombie.draw()
+
+        # Draw and move Projectiles
+        for projectile in projectiles[:]:
+            projectile.move()
+            projectile.draw()
+            if not projectile.active:
+                projectiles.remove(projectile)
 
         #Draw target
         py.draw.rect(dis, black, (zombieGoalX, zombieGoalY, 30, 30))
