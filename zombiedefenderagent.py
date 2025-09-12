@@ -199,6 +199,9 @@ def gameLoop():
     burn_delay = 1000
     burn_time = 0
     burning = False
+    minSpawnTime = 1000
+    maxSpawnTime = 7000
+    waveNumber = 1
  
     while not game_over:
         for event in py.event.get():
@@ -233,10 +236,10 @@ def gameLoop():
         agent.draw()
 
         #Agent Logic
-        if len(deadZombies) == 0:
+        if len(deadZombies) == 0 or len(aliveZombies) >= 3:
             agent.patrol()
             agent.scanForZombies(aliveZombies)
-        else:
+        elif len(aliveZombies) < 3:
             agent.target = deadZombies[0]
             agent.moveToZombie(agent.target.xpos, agent.target.ypos)
             #Check if agent is close enough to burn the dead zombie
@@ -253,7 +256,13 @@ def gameLoop():
         #Spawn Zombies
         if current_time >= action_time:
             spawnZombies()
-            action_time = current_time + random.randint(1000,5000)
+            action_time = current_time + random.randint(minSpawnTime,maxSpawnTime)
+
+        #Increase spawn rate based on killed zombies
+        if zombiesKilled >= waveNumber * 10 and minSpawnTime > 200 and maxSpawnTime > 2000:
+            waveNumber += 1
+            minSpawnTime -= 100
+            maxSpawnTime -= 500
 
         #Update display
         py.display.update() 
