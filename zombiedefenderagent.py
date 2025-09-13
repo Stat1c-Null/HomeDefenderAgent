@@ -11,6 +11,7 @@ green = (0, 255, 0)
 blue = (50, 153, 213)
 brown = (142, 58, 2)
  
+#Display width
 dis_width = 800
 dis_height = 500
 
@@ -27,8 +28,10 @@ projectiles = []
 zombiesKilled = 0
 zombiesCleaned = 0
 
+#Goal for zombie to move towards to
 zombieGoalX,zombieGoalY = dis_width / 2, dis_height / 2
 
+#Agent patrol points
 patrolPoints = [(zombieGoalX - 100, zombieGoalY - 100),
                 (zombieGoalX + 100, zombieGoalY - 100),
                 (zombieGoalX + 100, zombieGoalY + 100),
@@ -94,11 +97,8 @@ class Agent:
         for zombie in aliveZombies:
             distance = ((self.xpos - zombie.xpos) ** 2 + (self.ypos - zombie.ypos) ** 2) ** 0.5
             if distance <= self.visionRange and not zombie.isDead:
-                print("Zombie Spotted and Shot!")
                 self.target = zombie
                 self.shoot(self.target)
-                
-                #return zombie
 
     #Move towards dead zombie
     def moveToZombie(self, zombieX, zombieY):
@@ -202,13 +202,16 @@ def gameLoop():
     minSpawnTime = 1000
     maxSpawnTime = 7000
     waveNumber = 1
+    aliveZombiesDanger = 4 # Number of alive zombies needed for agent to prioritize killing over burning
  
     while not game_over:
         for event in py.event.get():
             if event.type == py.QUIT:
                 game_over = True
 
+        #Get current time to calculate zombie spawn rate and burning delay
         current_time = py.time.get_ticks()
+
         #Fill background with a color
         dis.fill(brown)
 
@@ -228,6 +231,7 @@ def gameLoop():
 
         #Draw target
         py.draw.rect(dis, black, (zombieGoalX, zombieGoalY, 30, 30))
+
         #Draw Score
         zombiesKilledScore(zombiesKilled)
         zombiesCleanedScore(zombiesCleaned)
@@ -236,10 +240,11 @@ def gameLoop():
         agent.draw()
 
         #Agent Logic
-        if len(deadZombies) == 0 or len(aliveZombies) >= 3:
+        if len(deadZombies) == 0 or len(aliveZombies) >= aliveZombiesDanger: #If there are more than 4 alive zombies, prioritize patrol and killing
             agent.patrol()
             agent.scanForZombies(aliveZombies)
-        elif len(aliveZombies) < 3:
+        elif len(aliveZombies) < aliveZombiesDanger:#As long as there less than 4 alive zombies, prioritize burning dead ones
+            agent.scanForZombies(aliveZombies)
             agent.target = deadZombies[0]
             agent.moveToZombie(agent.target.xpos, agent.target.ypos)
             #Check if agent is close enough to burn the dead zombie
@@ -259,7 +264,7 @@ def gameLoop():
             action_time = current_time + random.randint(minSpawnTime,maxSpawnTime)
 
         #Increase spawn rate based on killed zombies
-        if zombiesKilled >= waveNumber * 10 and minSpawnTime > 200 and maxSpawnTime > 2000:
+        if zombiesKilled >= waveNumber * 10 and minSpawnTime > 400 and maxSpawnTime > 4000:
             waveNumber += 1
             minSpawnTime -= 100
             maxSpawnTime -= 500
